@@ -64,3 +64,41 @@ experiments = [
 ```
 
 바꿀 수 있는 파라미터: `--lr`, `--epochs`, `--batch-size`, `--optimizer` (sgd/adam)
+
+---
+
+## 🌙 밤샘 전이학습 그리드 서치 (심화)
+
+사전학습 모델(ResNet/MobileNet 등)을 CIFAR-10에 미세조정하면서, 여러 하이퍼파라미터 조합을 자동으로 실행하는 심화 실험입니다. (3시간 목표)
+
+| 파일 | 역할 |
+|------|------|
+| `train_transfer.py` | 전이학습 1회 실험 (모델/lr/옵티마이저 등 지정) |
+| `run_overnight.py` | 여러 조합 자동 실행 (시간 추정 + 중단 복구) |
+| `analyze_results.py` | 결과 순위표 + loss/정확도 곡선 그래프(PNG) |
+
+### 실행 전 체크 ⚠️
+- 전원 어댑터 연결 🔌
+- 절전모드 "안 함"
+- 노트북 덮개 닫아도 안 꺼지게 설정
+
+### 사용법
+```cmd
+conda activate cv
+pip install matplotlib            # 그래프용 (한 번만)
+python run_overnight.py           # 밤새 여러 실험 자동 실행
+```
+
+아침에 일어나서:
+```cmd
+python analyze_results.py         # 순위표 + plots/ 폴더에 그래프 PNG
+```
+
+### 시간 조절
+`run_overnight.py` 상단에서:
+- `GRID` : 실험할 조합 (모델/옵티마이저/학습률)
+- `COMMON["epochs"]` : 각 실험 에포크 수 (시간의 핵심 손잡이)
+- `COMMON["batch-size"]` : VRAM 부족(OOM) 시 64 → 32로 줄이기
+- `TIME_BUDGET_SEC` : 전체 시간 예산 (초과 예상 시 자동 중단, 다음 실행 때 이어서)
+
+중단되어도 `results_transfer.csv` 에 기록된 실험은 다시 실행 시 자동으로 건너뜁니다.

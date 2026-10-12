@@ -13,6 +13,9 @@ data/
 
 # 실험 결과 (각자 생성)
 results.csv
+results_transfer.csv
+logs/
+plots/
 
 # Kiro 설정
 .kiro/
