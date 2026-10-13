@@ -20,12 +20,21 @@ pip install timm datasets pillow matplotlib
 
 ## 사용법
 
-### 1. 데이터 준비 (ImageNet 검증 샘플 소량)
+### 1. 데이터 준비 (Imagenette = ImageNet 공개 하위셋)
 ```cmd
 python adversarial/download_data.py --num 200
 ```
-→ `data/images/` 에 이미지, `data/labels.csv` 에 정답 라벨 저장.
-(전체 ImageNet 144GB가 아니라, 검증 샘플 수백 장만 받습니다.)
+→ `data/images/` 에 이미지, `data/labels.csv` 에 정답 라벨(ImageNet 기준) 저장.
+
+- 전체 ImageNet(144GB)이 아니라 **Imagenette**(10개 클래스, 약 100MB)를 받습니다.
+- **가입/로그인 불필요** (torchvision `download=True`로 자동).
+- Imagenette 10개 클래스는 ImageNet 1000개의 부분집합이라,
+  ImageNet 사전학습 ResNet-50을 그대로 공격 대상으로 쓸 수 있습니다.
+
+> 참고: 원 논문은 ImageNet 검증셋 1000장을 썼습니다. Imagenette는 가입 없이
+> 동일한 "사전학습 모델 공격" 설정을 재현하기 위한 실용적 대체재입니다.
+> 공식 ImageNet 검증셋을 쓰려면 image-net.org 가입 후 받아 `data/images/`에 넣고
+> `data/labels.csv`(filename,label)만 맞춰주면 그대로 호환됩니다.
 
 ### 2. 공격 실행 + 성공률 측정
 ```cmd
