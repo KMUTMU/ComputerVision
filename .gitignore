@@ -17,6 +17,11 @@ results_transfer.csv
 logs/
 plots/
 
+# 적대적 공격 (각자 생성/다운로드)
+data/images/
+data/labels.csv
+adv_plots/
+
 # Kiro 설정
 .kiro/
 .kiro */
