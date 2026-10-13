@@ -31,10 +31,23 @@ python adversarial/download_data.py --num 200
 - Imagenette 10개 클래스는 ImageNet 1000개의 부분집합이라,
   ImageNet 사전학습 ResNet-50을 그대로 공격 대상으로 쓸 수 있습니다.
 
-> 참고: 원 논문은 ImageNet 검증셋 1000장을 썼습니다. Imagenette는 가입 없이
-> 동일한 "사전학습 모델 공격" 설정을 재현하기 위한 실용적 대체재입니다.
-> 공식 ImageNet 검증셋을 쓰려면 image-net.org 가입 후 받아 `data/images/`에 넣고
-> `data/labels.csv`(filename,label)만 맞춰주면 그대로 호환됩니다.
+> 참고: Imagenette는 가입 없이 빠르게 체험하기 위한 대체재입니다.
+> 논문과 **완전히 동일한 환경**을 원하면 아래 "공식 ImageNet" 방식을 쓰세요.
+
+### 1-B. (논문과 동일) 공식 ImageNet 검증셋 사용
+논문은 ILSVRC 2012 검증셋에서 서로 다른 클래스 1000장을 썼습니다. 이를 그대로 재현하려면:
+
+1. image-net.org 가입 후 아래 두 파일을 받아 `data/imagenet/` 에 넣습니다 (압축 풀 필요 없음):
+   - `ILSVRC2012_img_val.tar` (6.3GB, 검증 이미지 5만장)
+   - `ILSVRC2012_devkit_t12.tar.gz` (라벨 정보, Task 1&2)
+2. 선별 스크립트 실행:
+   ```cmd
+   python adversarial/prepare_imagenet.py --per-class 1
+   ```
+   → 1000개 서로 다른 클래스에서 1장씩, ResNet-50이 올바르게 분류하는 이미지만 골라
+   `data/images/` + `data/labels.csv` 로 저장 (논문 설정과 동일).
+   → 빠른 테스트는 `--max 200` 추가.
+3. 이후 `run_attack.py` / `visualize.py` 를 그대로 사용.
 
 ### 2. 공격 실행 + 성공률 측정
 ```cmd
