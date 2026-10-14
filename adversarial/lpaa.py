@@ -9,7 +9,10 @@ LPAA (Local Perturbation Augmentation Attack) 구현
      - 증강계수 β 로 마스킹된 섭동을 스케일해 탐색 범위 확장
      - N 개의 독립 subspace 에서 구한 그래디언트를 평균
   2) PI (Perturbation Initialization) — Eq.(7),(8)
-     - GMI_PI: GMI(글로벌 모멘텀) 방향을 초기 섭동으로 투영
+     - GMI_PI: GMI(Global Momentum Initialization, [38]) 로 선견지명 있는 모멘텀 확보
+       · pre_attack 번의 사전 수렴 + 증폭계수 amp(=10)로 global search
+       · 사전 공격 후 입력은 원본으로 리셋하되 누적 모멘텀은 유지
+       (Omenzychen/Global-Momentum-Initialization 공식 구현 방식 재현)
      - LPA_PI: 그 위에 LPA 연산을 한 번 적용해 초기 섭동 정제
   3) 모멘텀 업데이트 (MI-FGSM 토대) — Algorithm 1 line 13~14
 
@@ -47,31 +50,50 @@ def _lpa_gradient(model, x, delta, y, normalize, N, p, beta):
     return g_sum / N
 
 
-def _perturbation_init(model, x, y, normalize, epsilon, alpha, eta,
-                       N, p, beta, mu, lpapi_iters, lpapi_alpha):
+def _gmi_momentum(model, x, y, normalize, alpha, mu, pre_attack, amp):
     """
-    PI (Perturbation Initialization) — Eq.(7),(8).
+    GMI (Global Momentum Initialization) — 논문 [38], 공식 구현 방식 재현.
+    (Omenzychen/Global-Momentum-Initialization 의 핵심 로직)
 
-    - GMI_PI: 사전 공격(모멘텀 누적)으로 '선견지명 있는' 방향을 얻어
-              [-η·α, η·α] 범위로 투영 -> 초기 섭동 delta_M
-    - LPA_PI: delta_M 에서 출발해 LPA 연산을 몇 스텝 적용 -> 정제된 delta_0
+    핵심 아이디어:
+      - 본 공격 전에 'pre_attack' 번의 사전 수렴(pre-convergence)을 수행
+      - 사전 공격 단계에서는 증폭계수 amp(=10)로 '크게' 움직이며 global search
+        (약점 방향을 넓게 탐색해 gradient elimination 완화)
+      - 사전 공격이 끝나면 입력을 '원본으로 리셋'하되, 누적된 모멘텀(grad)은 유지
+      - 이렇게 얻은 '선견지명 있는 모멘텀'을 본 공격의 출발 모멘텀으로 사용
 
-    (논문은 GMI 를 그대로 쓰지만, 여기서는 동일 아이디어의 '모멘텀 사전공격'으로 근사 구현.)
+    반환: 사전 수렴으로 얻은 모멘텀 g (본 공격의 초기 모멘텀)
+    """
+    g = torch.zeros_like(x)
+    x_cur = x.clone()
+    for i in range(pre_attack):
+        grad = _loss_grad(model, torch.clamp(x_cur, 0, 1), y, normalize)
+        grad = grad / grad.abs().mean(dim=(1, 2, 3), keepdim=True).clamp(min=1e-12)
+        g = mu * g + grad
+        # pre_attack 단계에서는 증폭계수 amp 로 크게 이동 (global search)
+        x_cur = x_cur + amp * alpha * g.sign()
+    # 사전 공격 후 입력은 버리고(원본으로 리셋됨) 모멘텀 g 만 반환
+    return g.detach()
+
+
+def _perturbation_init(model, x, y, normalize, epsilon, alpha, eta,
+                       N, p, beta, mu, lpapi_iters, lpapi_alpha,
+                       pre_attack=5, amp=10.0):
+    """
+    PI (Perturbation Initialization) — Eq.(7),(8) + GMI([38]).
+
+    1) GMI_PI: GMI 로 '선견지명 있는 모멘텀'을 얻어, 그 방향으로 한 걸음 이동한 뒤
+               [-η·α, η·α] 범위로 투영 -> 초기 섭동 delta_M (Eq.7)
+    2) LPA_PI: delta_M 에서 LPA 그래디언트로 한 번 더 정제 -> delta_0 (Eq.8)
     """
     proj = eta * alpha
 
-    # ---- GMI_PI: 모멘텀을 누적해 안정적인 공격 방향 추정 ----
-    g_mom = torch.zeros_like(x)
-    delta = torch.zeros_like(x)
-    for _ in range(lpapi_iters):
-        grad = _loss_grad(model, torch.clamp(x + delta, 0, 1), y, normalize)
-        grad = grad / grad.abs().mean(dim=(1, 2, 3), keepdim=True).clamp(min=1e-12)
-        g_mom = mu * g_mom + grad
-        delta = delta + lpapi_alpha * g_mom.sign()
-        delta = torch.clamp(delta, -proj, proj)  # [-η·α, η·α] 투영
-    delta_M = delta
+    # ---- GMI_PI: 사전 수렴으로 모멘텀 확보 후 초기 섭동 생성 ----
+    g_mom = _gmi_momentum(model, x, y, normalize, alpha, mu, pre_attack, amp)
+    delta_M = lpapi_alpha * g_mom.sign()
+    delta_M = torch.clamp(delta_M, -proj, proj)  # [-η·α, η·α] 투영 (Eq.7)
 
-    # ---- LPA_PI: delta_M 에서 LPA 그래디언트로 한 번 더 정제 ----
+    # ---- LPA_PI: delta_M 에서 LPA 그래디언트로 정제 (Eq.8) ----
     g_lpa = _lpa_gradient(model, x, delta_M, y, normalize, N, p, beta)
     delta_0 = delta_M + lpapi_alpha * g_lpa.sign()
     delta_0 = torch.clamp(delta_0, -proj, proj)
@@ -82,6 +104,7 @@ def lpaa_attack(model, x, y, normalize, *,
                 epsilon=16 / 255, steps=10, alpha=1.6 / 255, mu=1.0,
                 N=20, p=0.95, beta=35.0, eta=3,
                 lpapi_iters=5, lpapi_alpha=3.2 / 255,
+                pre_attack=5, amp=10.0,
                 use_init=True):
     """
     LPAA 전체 공격 — Algorithm 1.
@@ -104,7 +127,8 @@ def lpaa_attack(model, x, y, normalize, *,
     if use_init:
         delta = _perturbation_init(
             model, x, y, normalize, epsilon, alpha, eta,
-            N, p, beta, mu, lpapi_iters, lpapi_alpha)
+            N, p, beta, mu, lpapi_iters, lpapi_alpha,
+            pre_attack=pre_attack, amp=amp)
     else:
         delta = torch.zeros_like(x)
 
