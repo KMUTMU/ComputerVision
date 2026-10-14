@@ -32,28 +32,43 @@ from data_utils import get_loader, get_normalizer
 
 # ----------------------------------------------------------------------
 # 모델 로더: surrogate 1개 + target 여러 개
-# 논문 Table 1 의 CNN/ViT 중 torchvision 에서 바로 받을 수 있는 것들로 구성.
+#
+# TransferAttack(분야 표준) 방식을 따름:
+#   - CNN 계열: torchvision 가중치("DEFAULT")
+#   - ViT 계열: timm 가중치 (예: vit_base_patch16_224)
+# "vit_b_timm" 처럼 _timm 접미사가 붙으면 timm 에서 로드.
 # ----------------------------------------------------------------------
+_TORCHVISION = {
+    "resnet50": (models.resnet50, models.ResNet50_Weights.IMAGENET1K_V1),
+    "densenet121": (models.densenet121, models.DenseNet121_Weights.IMAGENET1K_V1),
+    "resnext50": (models.resnext50_32x4d,
+                  models.ResNeXt50_32X4D_Weights.IMAGENET1K_V1),
+    "vit_b": (models.vit_b_16, models.ViT_B_16_Weights.IMAGENET1K_V1),
+    "convnext_t": (models.convnext_tiny, models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1),
+    "swin_t": (models.swin_t, models.Swin_T_Weights.IMAGENET1K_V1),
+}
+
+# timm 모델 이름 매핑 (분야 표준 가중치)
+_TIMM = {
+    "resnet50_timm": "resnet50",
+    "vit_b_timm": "vit_base_patch16_224",
+    "pit_b_timm": "pit_b_224",
+    "swin_t_timm": "swin_tiny_patch4_window7_224",
+}
+
+
 def load_model(name, device):
-    weights = {
-        "resnet50": models.ResNet50_Weights.IMAGENET1K_V1,
-        "densenet121": models.DenseNet121_Weights.IMAGENET1K_V1,
-        "resnext50": models.ResNeXt50_32X4D_Weights.IMAGENET1K_V1,
-        "vit_b": models.ViT_B_16_Weights.IMAGENET1K_V1,
-        "convnext_t": models.ConvNeXt_Tiny_Weights.IMAGENET1K_V1,
-        "swin_t": models.Swin_T_Weights.IMAGENET1K_V1,
-    }
-    builders = {
-        "resnet50": models.resnet50,
-        "densenet121": models.densenet121,
-        "resnext50": models.resnext50_32x4d,
-        "vit_b": models.vit_b_16,
-        "convnext_t": models.convnext_tiny,
-        "swin_t": models.swin_t,
-    }
-    if name not in builders:
-        raise ValueError(f"알 수 없는 모델: {name} (가능: {list(builders)})")
-    model = builders[name](weights=weights[name]).eval().to(device)
+    if name in _TIMM:
+        import timm
+        model = timm.create_model(_TIMM[name], pretrained=True)
+    elif name in _TORCHVISION:
+        builder, weights = _TORCHVISION[name]
+        model = builder(weights=weights)
+    else:
+        raise ValueError(
+            f"알 수 없는 모델: {name} "
+            f"(torchvision: {list(_TORCHVISION)}, timm: {list(_TIMM)})")
+    model = model.eval().to(device)
     for p in model.parameters():
         p.requires_grad_(False)
     return model
