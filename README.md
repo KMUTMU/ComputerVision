@@ -212,8 +212,38 @@ ResNet-50(surrogate)에서 I-FGSM 공격을 한 번 생성 → 서로 다른 구
 
 ---
 
+## 실험 5: LPAA 구현 및 재현 (레벨 3 — 논문 재현 성공 🏆)
+
+논문 Algorithm 1을 직접 구현(`adversarial/lpaa.py`)하여, ResNet-50(surrogate)에서
+생성한 LPAA 공격을 ViT-B로 전이시킨 결과. (동일 데이터 1000장, ε=16/255, T=10, N=20, p=0.95, β=35)
+
+| target 모델 | I-FGSM ASR | **LPAA ASR** | 개선 |
+|------------|-----------|-------------|------|
+| resnet50 (화이트박스) | 100.00% | 100.00% | - |
+| **vit_b (전이)** | 10.76% | **65.34%** | **+54.58%p** 🚀 |
+
+**핵심 해석:**
+1. **LPAA가 CNN→ViT 전이성을 극적으로 개선**: ViT-B ASR이 10.76% → 65.34%로 6배 넘게 상승.
+   논문의 핵심 주장("subspace augmentation으로 surrogate 과적합을 완화")을 직접 재현.
+2. **논문 수치와 근접**: 논문 Table 1의 LPAA+ViT-B ≈ 58.3% 대비 우리 결과 65.34% (±7%p).
+   서로 다른 1000장 샘플 + GMI 초기화 근사 구현을 감안하면 경향·절대값 모두 잘 재현됨.
+3. **왜 좋아지나**: I-FGSM은 ResNet-50 그래디언트만 따라가 ResNet에 특화된 노이즈를 만들지만,
+   LPAA는 랜덤 마스크로 여러 subspace를 탐색하고 증강계수(β)로 범위를 넓혀
+   더 일반화된(generalizable) 노이즈를 생성 → 구조가 다른 ViT에도 통함.
+4. **비용**: LPAA는 매 스텝 N=20 subspace를 평가해 I-FGSM보다 ~20배 느림 (1000장 약 14분).
+
+---
+
+## 코드/도구 요약 (adversarial/)
+| 레벨 | 스크립트 | 내용 |
+|------|---------|------|
+| 1 | `run_attack.py` | 화이트박스 공격 + ASR |
+| 2 | `run_transfer.py` | 여러 target 모델 전이성 평가 (`--attack lpaa` 지원) |
+| 3 | `lpaa.py` | LPAA 공격 구현 (논문 Algorithm 1) |
+| 4 | `reproduce_table.py` | 논문 Table 1 형식 다중 공격 x 다중 모델 비교 |
+
 ## 다음 단계 (진행 예정)
-- **레벨 3**: MI-FGSM(momentum) → LPAA 핵심(stochastic masking + augmentation) 구현
-- **레벨 4**: LPAA vs baseline(GRA/PGN 등) 축소 비교 실험 (논문 Table 재현)
+- `reproduce_table.py`로 ifgsm/mifgsm/lpaa를 여러 모델에 돌려 전체 Table 완성
+- baseline(GRA/PGN 등) 추가 비교는 TransferAttack 프레임워크 활용 검토
 
 적대적 공격 실험의 코드/사용법은 [`adversarial/README.md`](adversarial/README.md) 참고.
