@@ -138,19 +138,22 @@ def main():
     elapsed = time.time() - start
 
     # 결과 표 출력
-    print("-" * 82)
-    print(f"{'target 모델':<15}{'공격전 맞힘':<13}{'공격후 맞힘':<13}"
-          f"{'공격후 틀림':<13}{'ASR(전이성)':<14}{'비고'}")
-    print("-" * 82)
+    # (한글은 폭이 넓어 정렬이 어긋나므로 헤더는 영어로, 숫자는 우측정렬 고정폭)
+    header = (f"{'target model':<14}{'clean_ok':>10}{'adv_ok':>10}"
+              f"{'fooled':>10}{'ASR(%)':>10}   note")
+    print("-" * len(header.encode("ascii", "ignore")))
+    print(header)
+    print("-" * 68)
     for name in args.targets:
-        cc = stats[name]["clean_correct"]      # 공격 전 맞힌 수
-        fo = stats[name]["fooled"]             # 공격으로 틀리게 된 수
-        still = cc - fo                        # 공격 후에도 맞힌 수
+        cc = stats[name]["clean_correct"]      # 공격 전 맞힌 수 (clean_ok)
+        fo = stats[name]["fooled"]             # 공격으로 틀리게 된 수 (fooled)
+        still = cc - fo                        # 공격 후에도 맞힌 수 (adv_ok)
         asr = 100.0 * fo / max(cc, 1)          # 공격 성공률 = 틀린 비율
-        note = "<- 화이트박스" if name == args.surrogate else "전이(블랙박스)"
-        print(f"{name:<15}{cc:>5}장       {still:>5}장       "
-              f"{fo:>5}장       {asr:>6.2f}%       {note}")
-    print("-" * 82)
+        note = "whitebox" if name == args.surrogate else "transfer"
+        print(f"{name:<14}{cc:>10}{still:>10}{fo:>10}{asr:>9.2f}%   {note}")
+    print("-" * 68)
+    print("  clean_ok=공격전 맞힘  adv_ok=공격후 맞힘  "
+          "fooled=공격후 틀림  ASR=공격성공률")
     print(f"소요 시간: {elapsed:.1f}초")
     print("\n※ ASR(공격 성공률) = 공격후 틀린 장수 / 공격전 맞힌 장수")
     print("  ASR이 높을수록 공격이 강함(= 더 많이 틀리게 만듦).")
