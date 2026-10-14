@@ -94,5 +94,11 @@ def build_attack(name, epsilon, steps, alpha, momentum):
     elif name == "mifgsm":
         return lambda model, x, y, normalize: i_fgsm(
             model, x, y, epsilon, steps, alpha, normalize, momentum=momentum)
+    elif name == "lpaa":
+        from lpaa import lpaa_attack
+        return lambda model, x, y, normalize: lpaa_attack(
+            model, x, y, normalize,
+            epsilon=epsilon, steps=steps, alpha=alpha, mu=momentum)
     else:
-        raise ValueError(f"알 수 없는 공격: {name} (fgsm/ifgsm/mifgsm 중 선택)")
+        raise ValueError(
+            f"알 수 없는 공격: {name} (fgsm/ifgsm/mifgsm/lpaa 중 선택)")

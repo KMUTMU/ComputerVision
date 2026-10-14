@@ -90,7 +90,32 @@ python adversarial/run_transfer.py --attack mifgsm
 | `run_transfer.py` | 전이성 평가 (여러 target 모델, 레벨 2) |
 | `visualize.py` | 원본/노이즈/공격 이미지 시각화 |
 
+## 레벨 3: LPAA 구현
+논문 Algorithm 1 (Eq.3~8)을 구현한 `lpaa.py`.
+- LPA: 랜덤 마스크(p) + 증강계수(β) + N개 subspace 평균 그래디언트
+- PI: GMI 모멘텀 초기화 + LPA 정제
+- 파라미터: N=20, p=0.95, β=35, η=3 (논문 4.1.4)
+
+단일 공격으로 전이성 평가:
+```cmd
+python adversarial/run_transfer.py --attack lpaa
+```
+
+## 레벨 4: 논문 Table 1 재현
+여러 공격(ifgsm/mifgsm/lpaa)을 여러 target 모델에 돌려 Table 형식으로 비교.
+```cmd
+python adversarial/reproduce_table.py
+```
+→ 화면에 ASR 표(행=공격, 열=모델) 출력 + `table1_results.csv` 저장.
+→ `--methods`, `--targets` 로 범위 조절. 처음엔 작은 데이터(예: 50장)로 테스트 권장.
+
+| 파일 | 역할 |
+|------|------|
+| `lpaa.py` | LPAA 공격 구현 (논문 Algorithm 1) |
+| `reproduce_table.py` | 논문 Table 1 형식 다중 공격 x 다중 모델 비교 |
+
 ## 다음 단계
 - ~~레벨 2: 전이성~~ (완료: `run_transfer.py`)
-- **레벨 3**: MI-FGSM → LPAA 핵심(masking + augmentation) 구현
-- **레벨 4**: LPAA vs baseline 축소 비교 실험 (논문 Table 재현)
+- ~~레벨 3: LPAA 구현~~ (완료: `lpaa.py`)
+- ~~레벨 4: Table 재현~~ (완료: `reproduce_table.py`)
+- baseline(GRA/PGN 등) 추가 비교는 TransferAttack 프레임워크 활용 검토

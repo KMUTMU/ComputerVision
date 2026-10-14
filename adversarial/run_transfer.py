@@ -62,7 +62,7 @@ def load_model(name, device):
 def get_args():
     p = argparse.ArgumentParser(description="적대적 전이성 평가 (레벨 2)")
     p.add_argument("--attack", type=str, default="ifgsm",
-                   choices=["fgsm", "ifgsm", "mifgsm"])
+                   choices=["fgsm", "ifgsm", "mifgsm", "lpaa"])
     p.add_argument("--surrogate", type=str, default="resnet50",
                    help="공격을 생성할 모델")
     p.add_argument("--targets", type=str, nargs="+",
