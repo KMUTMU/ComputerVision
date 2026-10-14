@@ -69,16 +69,28 @@ python adversarial/visualize.py --attack ifgsm --num 5
 | step size α | 1.6/255 |
 | momentum μ | 1.0 |
 
+## 레벨 2: 전이성 평가 (논문 Table 1 설정)
+ResNet-50(surrogate)에서 공격을 한 번 생성해, 여러 target 모델에 통하는지 ASR을 측정합니다.
+```cmd
+python adversarial/run_transfer.py --attack ifgsm
+python adversarial/run_transfer.py --attack mifgsm
+```
+→ 화이트박스(ResNet-50 자기자신)는 높고, 전이(DenseNet/ViT 등)는 낮게 나옵니다.
+  그 '떨어지는 폭'이 전이성 문제이며, LPAA가 줄이려는 대상입니다.
+  (target 모델은 처음 실행 시 자동 다운로드됩니다.)
+
 ## 파일 설명
 | 파일 | 역할 |
 |------|------|
 | `attacks.py` | FGSM / I-FGSM / MI-FGSM 공격 구현 (논문 Eq.1) |
-| `download_data.py` | ImageNet 검증 샘플 준비 |
+| `download_data.py` | Imagenette(간편) 데이터 준비 |
+| `prepare_imagenet.py` | 공식 ImageNet val 선별 (논문 동일, 1000장) |
 | `data_utils.py` | 이미지/라벨 로딩 ([0,1] 공간 + 정규화 분리) |
-| `run_attack.py` | 공격 실행 + ASR 측정 (화이트박스) |
+| `run_attack.py` | 공격 실행 + ASR 측정 (화이트박스, 레벨 1) |
+| `run_transfer.py` | 전이성 평가 (여러 target 모델, 레벨 2) |
 | `visualize.py` | 원본/노이즈/공격 이미지 시각화 |
 
 ## 다음 단계
-- **레벨 2**: 전이성 — ResNet-50로 만든 공격이 다른 모델(DenseNet, ViT)에 통하는지
+- ~~레벨 2: 전이성~~ (완료: `run_transfer.py`)
 - **레벨 3**: MI-FGSM → LPAA 핵심(masking + augmentation) 구현
 - **레벨 4**: LPAA vs baseline 축소 비교 실험 (논문 Table 재현)
