@@ -75,6 +75,8 @@ def get_args():
     p.add_argument("--alpha", type=float, default=1.6 / 255)
     p.add_argument("--momentum", type=float, default=1.0)
     p.add_argument("--batch-size", type=int, default=16)
+    p.add_argument("--no-init", action="store_true",
+                   help="LPAA의 초기화(PI)를 끄기 (검증 3: 초기화 기여 분리)")
     return p.parse_args()
 
 
@@ -101,7 +103,9 @@ def main():
     print(f"\n[1/3] surrogate 모델({args.surrogate}) 로드 중...")
     surrogate = load_model(args.surrogate, device)
     attack = build_attack(args.attack, args.epsilon, args.steps,
-                          args.alpha, args.momentum)
+                          args.alpha, args.momentum, use_init=not args.no_init)
+    if args.attack == "lpaa":
+        print(f"    LPAA 초기화(PI): {'끔(--no-init)' if args.no_init else '켬'}")
 
     # 2) target 모델들 로드 (처음이면 다운로드됨)
     print(f"[2/3] target 모델 {len(args.targets)}개 로드 중 "
