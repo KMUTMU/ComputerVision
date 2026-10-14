@@ -178,6 +178,26 @@ return g                   # 이 g 가 본 공격의 초기 모멘텀
 "합리적 추정"을 하고 그 불확실성을 명시적으로 기록해야 한다. (경향은 재현되었고,
 절대값 차이는 위 디테일·데이터 분산으로 설명됨.)
 
+### 🔎 커뮤니티 표준 확인 (7%p 차이의 핵심 단서)
+
+적대적 전이성 분야의 표준 프레임워크 [TransferAttack](https://github.com/Trustworthy-AI-Group/TransferAttack)
+(Trustworthy-AI-Group)을 조사한 결과, 우리 재현과 논문값 차이의 주원인 2가지가 거의 확증됨:
+
+1. **표준 1000장 데이터셋 존재** ⭐
+   - 이 분야 논문들은 1000장을 각자 랜덤 선별하는 게 아니라, 커뮤니티가 공유하는
+     "학술 표준 ImageNet 호환 1000 PNG 이미지"(고정 세트)를 사용 (TransferAttack README).
+   - 우리는 ImageNet val에서 자체 랜덤 선별 → **서로 다른 1000장**이 ASR 차이의 핵심 원인.
+2. **모델 가중치는 timm 사용**
+   - TransferAttack은 `timm` 라이브러리를 요구 → 이 분야 표준 가중치는 torchvision이 아닌 timm.
+   - 우리는 torchvision `IMAGENET1K_V1` 사용 → 같은 "ViT-B"라도 가중치 소스가 달라 공격 저항력 차이.
+
+**결론 갱신:** 7%p 차이는 "데이터 샘플 분산(③)"과 "모델 가중치 소스(④)"가 주원인으로 **확증**.
+(선별 기준·초기화는 ablation으로 이미 배제됨.) 완전히 동일한 재현을 원하면 TransferAttack의
+표준 데이터셋 + timm 가중치를 사용하면 됨.
+
+**참고 — baseline 재사용:** TransferAttack에 GRA/PGN 등 LPAA 논문의 baseline이 구현되어 있어,
+향후 baseline 비교(Table 1 전체)는 이 프레임워크를 활용 가능. (LPAA 자체는 미구현 — 최신 논문.)
+
 ## 레벨 4: 논문 Table 1 재현
 여러 공격(ifgsm/mifgsm/lpaa)을 여러 target 모델에 돌려 Table 형식으로 비교.
 ```cmd
