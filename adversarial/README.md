@@ -265,3 +265,30 @@ python adversarial/run_transfer.py --attack lpaa --targets resnet50 vit_b_timm -
 
 **알고리즘 비교 시 주의:** 공격 알고리즘 A vs B 비교는 동일 데이터 + 동일 시드로 수행해야
 공정하다. LPAA의 랜덤 마스크 때문에 `--seed` 고정이 특히 중요.
+
+---
+
+## 📚 데이터셋 출처 추적 (논문 인용 [30][41][52] 역추적)
+
+LPAA 논문은 데이터셋을 "ILSVRC 2012 val에서 1000장, [30][41][52]에서 널리 사용된 것"이라 서술.
+이 세 논문을 역추적한 결과, 실제 데이터셋의 정체를 확인:
+
+```
+LPAA [41] SIA → SIA 공식코드: "Admix 제공 데이터 + val_rs.csv"
+            → Admix 공식코드: 동일 Google Drive 데이터
+            → 정체: NIPS 2017 Adversarial Competition 데이터셋 (ImageNet-Compatible)
+```
+
+**데이터셋 정체: NIPS 2017 Adversarial Learning Development Set (ImageNet-Compatible)**
+- ImageNet 호환 1000장, 원본 크기 **299×299**
+- 라벨 파일 `val_rs.csv` ("rs"=resized)
+- NIPS 2017 적대적 공격 대회용 표준 벤치마크. 이 분야 논문들이 공통 사용.
+
+**우리 실험과의 정합성:**
+- ✅ 실험 8에서 쓴 TransferAttack "표준 1000 PNG"가 바로 이 계열 → ASR이 논문에 근접(62.63%)한 이유 설명됨.
+- ⚠️ **이미지 크기 차이 발견**: 원본은 299×299 기준인데, 우리 `data_utils.py`는 Resize(256)+CenterCrop(224)로 **224**를 사용.
+  - ViT-B/16은 224 입력이라 문제없지만, 논문이 평가에 쓴 입력 크기/전처리와 다르면 ASR이 달라질 수 있음.
+  - → 남은 4.3%p 차이의 또 다른 후보(전처리/입력 크기).
+
+**결론:** 데이터셋 "종류"는 올바르게 맞췄음(NIPS 2017 ImageNet-Compatible). 잔존 차이는
+전처리(입력 크기 224 vs 299)와 LPA 구현 디테일에서 기인할 가능성.
