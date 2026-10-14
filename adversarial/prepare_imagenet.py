@@ -42,9 +42,40 @@ def get_args():
     p.add_argument("--max", type=int, default=1000,
                    help="최대 총 이미지 수 (논문=1000)")
     p.add_argument("--no-filter", action="store_true",
-                   help="ResNet-50 정답 필터링을 끄기 (더 빠르지만 덜 깨끗)")
+                   help="정답 필터링을 끄기 (더 빠르지만 덜 깨끗)")
+    p.add_argument("--filter-models", type=str, nargs="+",
+                   default=["resnet50"],
+                   help="이 모델들이 '모두' 맞히는 이미지만 선별 "
+                        "(논문 기준에 맞추려면 여러 개 지정, "
+                        "예: resnet50 densenet121 vit_b)")
     p.add_argument("--batch-size", type=int, default=32)
     return p.parse_args()
+
+
+# 필터링용 모델 로더
+_FILTER_ZOO = {
+    "resnet50": (models.resnet50, "ResNet50_Weights"),
+    "densenet121": (models.densenet121, "DenseNet121_Weights"),
+    "resnext50": (models.resnext50_32x4d, "ResNeXt50_32X4D_Weights"),
+    "convnext_t": (models.convnext_tiny, "ConvNeXt_Tiny_Weights"),
+    "vit_b": (models.vit_b_16, "ViT_B_16_Weights"),
+    "swin_t": (models.swin_t, "Swin_T_Weights"),
+}
+
+
+def load_filter_models(names, device):
+    loaded = []
+    for name in names:
+        if name not in _FILTER_ZOO:
+            raise ValueError(f"알 수 없는 필터 모델: {name} "
+                             f"(가능: {list(_FILTER_ZOO)})")
+        builder, weights_attr = _FILTER_ZOO[name]
+        weights = getattr(models, weights_attr).IMAGENET1K_V1
+        m = builder(weights=weights).eval().to(device)
+        for p in m.parameters():
+            p.requires_grad_(False)
+        loaded.append((name, m))
+    return loaded
 
 
 def main():
@@ -66,14 +97,14 @@ def main():
     ])
     dataset = ImageNet(root=IMAGENET_ROOT, split="val", transform=load_tf)
 
-    # 사전학습 ResNet-50 (정답 필터링용)
-    model = None
+    # 정답 필터링용 모델들 (여러 개면 '모두' 맞히는 이미지만 채택 = 논문 기준)
+    filter_models = []
     normalize = None
+    to_tensor = None
     if not args.no_filter:
-        model = models.resnet50(
-            weights=models.ResNet50_Weights.IMAGENET1K_V1).eval().to(device)
-        for p in model.parameters():
-            p.requires_grad_(False)
+        print(f"필터 모델 로드 중: {', '.join(args.filter_models)} "
+              f"(처음이면 다운로드)...")
+        filter_models = load_filter_models(args.filter_models, device)
         mean = torch.tensor(IMAGENET_MEAN, device=device).view(1, 3, 1, 1)
         std = torch.tensor(IMAGENET_STD, device=device).view(1, 3, 1, 1)
         normalize = lambda x: (x - mean) / std
@@ -87,7 +118,11 @@ def main():
 
     print(f"선별 시작: 클래스당 최대 {args.per_class}장, 총 최대 {args.max}장")
     if not args.no_filter:
-        print("(ResNet-50 이 올바르게 분류하는 이미지만 채택)")
+        if len(filter_models) == 1:
+            print(f"({filter_models[0][0]} 이 올바르게 분류하는 이미지만 채택)")
+        else:
+            print(f"({', '.join(args.filter_models)} 이 '모두' 올바르게 "
+                  f"분류하는 이미지만 채택 — 논문 기준)")
 
     for img, label in dataset:
         if saved >= args.max:
@@ -95,13 +130,18 @@ def main():
         if per_class_count.get(label, 0) >= args.per_class:
             continue
 
-        # 정답 필터: ResNet-50 이 맞히는지 확인
+        # 정답 필터: 지정된 모델들이 '전부' 맞히는지 확인
         if not args.no_filter:
             x = to_tensor(img).unsqueeze(0).to(device)
+            all_correct = True
             with torch.no_grad():
-                pred = model(normalize(x)).argmax(1).item()
-            if pred != label:
-                continue  # 틀리면 건너뜀 (논문: 올바르게 분류되는 이미지 사용)
+                xn = normalize(x)
+                for _, m in filter_models:
+                    if m(xn).argmax(1).item() != label:
+                        all_correct = False
+                        break
+            if not all_correct:
+                continue  # 하나라도 틀리면 건너뜀 (논문: 모든 모델이 맞히는 이미지)
 
         fname = f"val_{saved:05d}.png"
         img.convert("RGB").save(os.path.join(OUT_IMG_DIR, fname))
