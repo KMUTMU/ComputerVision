@@ -92,6 +92,12 @@ def get_args():
     p.add_argument("--batch-size", type=int, default=16)
     p.add_argument("--no-init", action="store_true",
                    help="LPAA의 초기화(PI)를 끄기 (검증 3: 초기화 기여 분리)")
+    p.add_argument("--beta-start", type=float, default=None,
+                   help="[개선] LPAA β 스케줄 시작값 (초반, 크게 탐색)")
+    p.add_argument("--beta-end", type=float, default=None,
+                   help="[개선] LPAA β 스케줄 끝값 (후반, 작게 수렴)")
+    p.add_argument("--seed", type=int, default=0,
+                   help="랜덤 시드 (공정 비교를 위해 고정)")
     return p.parse_args()
 
 
@@ -105,11 +111,20 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     normalize = get_normalizer(device)
 
+    # 공정 비교를 위한 시드 고정 (LPAA의 랜덤 마스크 등 재현성 확보)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
     print("=" * 70)
     print(f"전이성 평가  |  공격: {args.attack.upper()}  "
           f"|  surrogate: {args.surrogate}")
     print(f"ε={args.epsilon:.4f} (~{args.epsilon*255:.0f}/255)  "
-          f"T={args.steps}  α={args.alpha:.4f}  μ={args.momentum}")
+          f"T={args.steps}  α={args.alpha:.4f}  μ={args.momentum}  "
+          f"seed={args.seed}")
+    if args.beta_start is not None and args.beta_end is not None:
+        print(f"β 스케줄: {args.beta_start} → {args.beta_end} (선형 감소, "
+              f"평균 {(args.beta_start+args.beta_end)/2:.1f})")
     print(f"target 모델: {', '.join(args.targets)}")
     print(f"장치: {device}")
     print("=" * 70)
@@ -118,7 +133,8 @@ def main():
     print(f"\n[1/3] surrogate 모델({args.surrogate}) 로드 중...")
     surrogate = load_model(args.surrogate, device)
     attack = build_attack(args.attack, args.epsilon, args.steps,
-                          args.alpha, args.momentum, use_init=not args.no_init)
+                          args.alpha, args.momentum, use_init=not args.no_init,
+                          beta_start=args.beta_start, beta_end=args.beta_end)
     if args.attack == "lpaa":
         print(f"    LPAA 초기화(PI): {'끔(--no-init)' if args.no_init else '켬'}")
 

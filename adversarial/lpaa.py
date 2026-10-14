@@ -32,6 +32,24 @@ def _loss_grad(model, x_input, y, normalize):
     return torch.autograd.grad(loss, x_input)[0]
 
 
+def _beta_schedule(t, steps, beta, beta_start, beta_end):
+    """
+    iteration t 에서 사용할 증강계수 β 를 돌려준다.
+
+    - beta_start/beta_end 가 None 이면 고정 β (논문 방식).
+    - 둘 다 주어지면 선형 감소(linear decay):
+        초반(t=0)엔 beta_start 로 크게 탐색,
+        후반(t=steps-1)엔 beta_end 로 작게 수렴.
+      β(t) = beta_start - (beta_start - beta_end) * t / (steps - 1)
+    """
+    if beta_start is None or beta_end is None:
+        return beta
+    if steps <= 1:
+        return beta_start
+    frac = t / (steps - 1)
+    return beta_start - (beta_start - beta_end) * frac
+
+
 def _lpa_gradient(model, x, delta, y, normalize, N, p, beta):
     """
     LPA 평균 그래디언트 — Eq.(5),(6).
@@ -105,6 +123,7 @@ def lpaa_attack(model, x, y, normalize, *,
                 N=20, p=0.95, beta=35.0, eta=3,
                 lpapi_iters=5, lpapi_alpha=3.2 / 255,
                 pre_attack=5, amp=10.0,
+                beta_start=None, beta_end=None,
                 use_init=True):
     """
     LPAA 전체 공격 — Algorithm 1.
@@ -116,7 +135,10 @@ def lpaa_attack(model, x, y, normalize, *,
         mu      : 모멘텀 감쇠 μ
         N       : subspace 개수
         p       : 마스킹 비율 (원소가 0이 될 확률)
-        beta    : 증강 계수
+        beta    : 증강 계수 (고정값, 논문 방식)
+        beta_start/beta_end: 둘 다 지정하면 β를 선형 감소시킴
+                  (초반 beta_start로 크게 탐색 → 후반 beta_end로 작게 수렴).
+                  [개선 아이디어] 공정 비교를 위해 평균을 논문값(35)에 맞추길 권장.
         eta     : 초기화 투영 범위 상한 계수
         use_init: PI(초기화 전략) 사용 여부
     """
@@ -138,8 +160,11 @@ def lpaa_attack(model, x, y, normalize, *,
         # Algorithm 1 line 10~12: 첫 반복에서는 delta 를 0 으로 리셋
         delta_for_grad = torch.zeros_like(delta) if t == 0 else delta
 
+        # 이번 iteration 의 β (스케줄링 적용 시 t에 따라 변함)
+        beta_t = _beta_schedule(t, steps, beta, beta_start, beta_end)
+
         # LPA 평균 그래디언트 — Eq.(6)
-        g_lpa = _lpa_gradient(model, x, delta_for_grad, y, normalize, N, p, beta)
+        g_lpa = _lpa_gradient(model, x, delta_for_grad, y, normalize, N, p, beta_t)
 
         # 모멘텀 업데이트 (line 13): m_t = μ·m_{t-1} + g/||g||_1
         g_lpa = g_lpa / g_lpa.abs().mean(dim=(1, 2, 3), keepdim=True).clamp(min=1e-12)

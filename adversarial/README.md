@@ -216,3 +216,52 @@ python adversarial/reproduce_table.py
 - ~~레벨 3: LPAA 구현~~ (완료: `lpaa.py`)
 - ~~레벨 4: Table 재현~~ (완료: `reproduce_table.py`)
 - baseline(GRA/PGN 등) 추가 비교는 TransferAttack 프레임워크 활용 검토
+
+---
+
+## 🧪 개선 아이디어: β(증강계수) 스케줄링
+
+**가설:** 논문은 증강계수 β=35 고정. 대신 "초반엔 크게 탐색(β 큼) → 후반엔 작게 수렴(β 작음)"
+하면, 더 일반화된 섭동 방향을 찾아 전이성이 개선될 수 있다.
+
+**설정값 (선형 감소, linear decay):**
+| 항목 | 값 | 근거 |
+|------|-----|------|
+| beta_start | 50 | 초반(t=0): 넓게 탐색 |
+| beta_end | 20 | 후반(t=T-1): 정밀 수렴 |
+| 평균 | **35** | 논문 고정값과 동일 → 공정 비교 |
+| 스케줄 | β(t) = 50 − 30·t/(T−1) | T=10 |
+
+iteration별 β (T=10): 50.0, 46.7, 43.3, 40.0, 36.7, 33.3, 30.0, 26.7, 23.3, 20.0 (평균 35.0)
+
+**공정 비교 원칙:**
+- β 평균을 논문값(35)에 맞춰, "β를 변화시킨 효과"만 측정 (단순히 β가 커서 생기는 효과 배제).
+- LPAA는 랜덤 마스크를 쓰므로 **시드 고정**(`--seed`) 필수. 안 그러면 β 효과와 랜덤 변동을 구분 못 함.
+
+**실행 (고정 β vs 스케줄 β 비교):**
+```cmd
+# 기준: 고정 β=35
+python adversarial/run_transfer.py --attack lpaa --targets resnet50 vit_b_timm --seed 0
+
+# 개선: β 50→20 선형 감소
+python adversarial/run_transfer.py --attack lpaa --targets resnet50 vit_b_timm --seed 0 --beta-start 50 --beta-end 20
+```
+→ 두 결과의 ViT ASR 차이가 "β 스케줄링의 순수 효과".
+
+---
+
+## 데이터 편향 점검 (방법론 메모)
+
+현재 데이터 파이프라인(`data_utils.py`):
+- `data/images/` PNG + `data/labels.csv`(filename,label) 로드
+- 각 이미지: Resize(256) → CenterCrop(224) → [0,1] 텐서 (정규화는 모델 forward 직전)
+- `shuffle=False` (순서대로)
+
+**편향 위험 평가:**
+- ✅ 현재 분야 표준 1000장 전체를 사용 → 편향 위험 낮음.
+- ⚠️ `shuffle=False`이므로 **일부만(`--max N`) 쓰면 앞쪽 이미지에 편향** 가능
+  (표준셋이 클래스 정렬이면 특정 클래스 쏠림). 전체 사용 시 문제 없음.
+- ✅ ASR은 "모델이 원래 맞힌 것"만 분모로 → 공정.
+
+**알고리즘 비교 시 주의:** 공격 알고리즘 A vs B 비교는 동일 데이터 + 동일 시드로 수행해야
+공정하다. LPAA의 랜덤 마스크 때문에 `--seed` 고정이 특히 중요.

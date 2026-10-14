@@ -85,7 +85,9 @@ def i_fgsm(model, x, y, epsilon, steps, alpha, normalize, momentum=0.0):
 
 # 공격 이름 -> 함수 매핑 (run_attack.py 에서 사용)
 # use_init: LPAA의 초기화(PI) 사용 여부 (검증 3용). LPAA 외 공격엔 영향 없음.
-def build_attack(name, epsilon, steps, alpha, momentum, use_init=True):
+# beta_start/beta_end: LPAA의 β 스케줄링(개선 아이디어). 둘 다 주면 선형 감소.
+def build_attack(name, epsilon, steps, alpha, momentum, use_init=True,
+                 beta_start=None, beta_end=None):
     name = name.lower()
     if name == "fgsm":
         return lambda model, x, y, normalize: fgsm(model, x, y, epsilon, normalize)
@@ -100,7 +102,7 @@ def build_attack(name, epsilon, steps, alpha, momentum, use_init=True):
         return lambda model, x, y, normalize: lpaa_attack(
             model, x, y, normalize,
             epsilon=epsilon, steps=steps, alpha=alpha, mu=momentum,
-            use_init=use_init)
+            use_init=use_init, beta_start=beta_start, beta_end=beta_end)
     else:
         raise ValueError(
             f"알 수 없는 공격: {name} (fgsm/ifgsm/mifgsm/lpaa 중 선택)")
