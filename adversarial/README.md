@@ -99,7 +99,50 @@ python adversarial/run_transfer.py --attack mifgsm
 단일 공격으로 전이성 평가:
 ```cmd
 python adversarial/run_transfer.py --attack lpaa
+# 초기화(PI) 기여 분리(ablation):
+python adversarial/run_transfer.py --attack lpaa --no-init
 ```
+
+### GMI (Global Momentum Initialization) 전체 로직
+
+LPAA의 초기화(PI)는 GMI(논문 참고문헌 [38], Wang et al. 2024)에 기반한다.
+공식 구현(`Omenzychen/Global-Momentum-Initialization`)의 핵심 로직을 재현했다.
+
+**해결하려는 문제 — gradient elimination:**
+반복 공격에서 매 스텝 `sign(gradient)`만 쓰면, 그래디언트가 스텝마다 들쭉날쭉해
+부호가 상쇄(elimination)되며 특정 지역 최적에 갇힌다. 전이성 저하의 원인 중 하나.
+
+**GMI의 아이디어 — 사전 수렴(pre-convergence) + global search:**
+본 공격을 시작하기 전에 '정찰(사전 공격)'을 먼저 돌려 안정적인 모멘텀을 쌓고,
+그 모멘텀을 본 공격의 출발점으로 삼아 '선견지명 있는' 방향에서 시작한다.
+
+**알고리즘 (의사코드):**
+```
+입력: 깨끗한 이미지 x, 라벨 y, 사전공격 횟수 P(=5), 증폭계수 amp(=10), 모멘텀 μ, 스텝 α
+g = 0                      # 모멘텀
+x_cur = x
+for i in range(P):         # ---- 사전 수렴 단계 (global search) ----
+    grad = ∇_x L(f(x_cur), y)
+    grad = grad / mean(|grad|)        # L1 정규화
+    g = μ·g + grad                    # 모멘텀 누적
+    x_cur = x_cur + amp·α·sign(g)     # amp(=10)배로 '크게' 이동 → 넓게 탐색
+# 사전 공격 종료: 입력 x_cur 는 버리고(원본으로 리셋), 모멘텀 g 만 유지
+return g                   # 이 g 가 본 공격의 초기 모멘텀
+```
+
+**핵심 포인트 2가지 (우리가 처음 근사 구현 때 빠뜨렸던 부분):**
+1. **증폭계수 amp=10**: 사전 공격 단계에서만 스텝을 10배로 키워, 좁은 지역이 아니라
+   손실 지형을 '넓게' 탐색한다 (global search). 본 공격 단계에서는 amp=1.
+2. **입력 리셋 + 모멘텀 유지**: 사전 공격이 끝나면 그동안 이동한 입력(x_cur)은 버리고
+   원본 x에서 다시 시작하되, 축적된 모멘텀 g는 가지고 간다. "정찰로 길만 파악하고
+   출발점은 원점으로" 돌아오는 셈.
+
+**LPAA에서의 사용 (Eq.7, 8):**
+- GMI_PI: 위 g로 한 걸음 이동 → `[-η·α, η·α]` 범위로 투영 → 초기 섭동 δ_M  (Eq.7)
+- LPA_PI: δ_M에 LPA 그래디언트를 한 번 더 적용해 정제 → δ_0  (Eq.8)
+- δ_0가 본 LPAA 반복의 시작 섭동이 된다.
+
+**구현 파라미터:** pre_attack=5, amp=10, η=3, α_LPAPI=3.2/255 (논문/공식 구현 기준)
 
 ## 레벨 4: 논문 Table 1 재현
 여러 공격(ifgsm/mifgsm/lpaa)을 여러 target 모델에 돌려 Table 형식으로 비교.
