@@ -94,13 +94,16 @@ def main():
 
     elapsed = time.time() - start
     clean_acc = 100.0 * clean_correct / total
+    still_correct = clean_correct - fooled      # 공격 후에도 맞힌 수
     asr = 100.0 * fooled / max(clean_correct, 1)
 
     print("-" * 64)
     print(f"전체 이미지         : {total}")
-    print(f"공격 전 정확도      : {clean_acc:.2f}%  ({clean_correct}/{total})")
+    print(f"공격 전 맞힌 장수   : {clean_correct}장  (정확도 {clean_acc:.2f}%)")
+    print(f"공격 후 맞힌 장수   : {still_correct}장")
+    print(f"공격 후 틀린 장수   : {fooled}장")
     print(f"공격 성공률 (ASR)   : {asr:.2f}%  "
-          f"({fooled}/{clean_correct} 를 오분류시킴)")
+          f"(= 틀린 {fooled} / 맞혔던 {clean_correct})")
     print(f"소요 시간           : {elapsed:.1f}초")
     print("-" * 64)
     print("※ 이것은 '화이트박스' 공격입니다 (공격 만든 모델 = 평가 모델).")
