@@ -137,23 +137,44 @@ def main():
 
     elapsed = time.time() - start
 
-    # 결과 표 출력
-    # (한글은 폭이 넓어 정렬이 어긋나므로 헤더는 영어로, 숫자는 우측정렬 고정폭)
-    header = (f"{'target model':<14}{'clean_ok':>10}{'adv_ok':>10}"
-              f"{'fooled':>10}{'ASR(%)':>10}   note")
-    print("-" * len(header.encode("ascii", "ignore")))
+    # 결과 표 출력 (한글 헤더 사용 + 폭 정확히 맞춤)
+    # 한글/전각 문자는 터미널에서 2칸을 차지하므로, 그걸 고려해 패딩한다.
+    def disp_width(s):
+        import unicodedata
+        return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in s)
+
+    def pad(s, width, align="left"):
+        gap = width - disp_width(s)
+        if gap <= 0:
+            return s
+        return s + " " * gap if align == "left" else " " * gap + s
+
+    # 컬럼 폭 정의 (표시 칸 기준)
+    cols = [("target 모델", 16, "left"), ("공격전 맞힘", 12, "right"),
+            ("공격후 맞힘", 12, "right"), ("공격후 틀림", 12, "right"),
+            ("ASR(전이성)", 13, "right"), ("비고", 16, "left")]
+    total_w = sum(w for _, w, _ in cols) + len(cols) - 1
+
+    header = " ".join(pad(name, w, a) for name, w, a in cols)
+    print("-" * total_w)
     print(header)
-    print("-" * 68)
+    print("-" * total_w)
     for name in args.targets:
-        cc = stats[name]["clean_correct"]      # 공격 전 맞힌 수 (clean_ok)
-        fo = stats[name]["fooled"]             # 공격으로 틀리게 된 수 (fooled)
-        still = cc - fo                        # 공격 후에도 맞힌 수 (adv_ok)
+        cc = stats[name]["clean_correct"]      # 공격 전 맞힌 수
+        fo = stats[name]["fooled"]             # 공격으로 틀리게 된 수
+        still = cc - fo                        # 공격 후에도 맞힌 수
         asr = 100.0 * fo / max(cc, 1)          # 공격 성공률 = 틀린 비율
-        note = "whitebox" if name == args.surrogate else "transfer"
-        print(f"{name:<14}{cc:>10}{still:>10}{fo:>10}{asr:>9.2f}%   {note}")
-    print("-" * 68)
-    print("  clean_ok=공격전 맞힘  adv_ok=공격후 맞힘  "
-          "fooled=공격후 틀림  ASR=공격성공률")
+        note = "<- 화이트박스" if name == args.surrogate else "전이(블랙박스)"
+        row_vals = [
+            (name, 16, "left"),
+            (f"{cc}장", 12, "right"),
+            (f"{still}장", 12, "right"),
+            (f"{fo}장", 12, "right"),
+            (f"{asr:.2f}%", 13, "right"),
+            (note, 16, "left"),
+        ]
+        print(" ".join(pad(v, w, a) for v, w, a in row_vals))
+    print("-" * total_w)
     print(f"소요 시간: {elapsed:.1f}초")
     print("\n※ ASR(공격 성공률) = 공격후 틀린 장수 / 공격전 맞힌 장수")
     print("  ASR이 높을수록 공격이 강함(= 더 많이 틀리게 만듦).")
