@@ -21,3 +21,7 @@ exp10,β sweep rise,resnet50,vit_b_timm,lpaa rise20to50 seed=0,ASR(%),63.17,-0.5
 exp10,β sweep rise넓음,resnet50,vit_b_timm,lpaa rise10to60 seed=0,ASR(%),62.74,-0.97%p
 exp10,β sweep decay,resnet50,vit_b_timm,lpaa decay50to20 seed=0,ASR(%),62.53,-1.19%p
 exp10,β sweep decay넓음,resnet50,vit_b_timm,lpaa decay60to10 seed=0,ASR(%),61.77,-1.94%p (최저)
+exp11,재실험 논문식 I-FGSM,resnet50,vit_b_timm,ifgsm 논문식ASR,ASR(%),15.70,전이 avg 46.8
+exp11,재실험 논문식 MI-FGSM,resnet50,vit_b_timm,mifgsm 논문식ASR,ASR(%),31.10,전이 avg 64.8
+exp11,재실험 논문식 LPAA(init on),resnet50,vit_b_timm,lpaa init on 논문식ASR,ASR(%),65.90,전이 avg 87.2 (최고)
+exp11,재실험 논문식 LPAA(init off),resnet50,vit_b_timm,lpaa init off 논문식ASR,ASR(%),64.40,전이 avg 86.8
