@@ -314,3 +314,49 @@ ASR을 **논문식(공격후 틀린 전체 / 전체)**으로 통일. run_attack/
 **교훈:** 재현 연구에서 "같은 지표 이름(ASR)"이라도 분모 정의가 다르면 직접 비교가 왜곡된다.
 논문의 지표 정의를 정확히 맞추는 것이 공정 비교의 전제. (이 분모 차이는 사용자가 "화이트박스가
 100%인 게 이상하다"는 직관으로 발견함.)
+
+---
+
+## 📏 ASR 계산 방식 — 분야 표준 조사 및 우리 구현의 근거
+
+**질문:** 최상위 학회(CVPR/ICCV/NeurIPS) 적대적 전이성 논문들은 ASR을 어떻게 계산하는가?
+우리 방식이 맞는가?
+
+**조사 결과 — 분야 표준 프레임워크 TransferAttack(Trustworthy-AI-Group)의 실제 코드:**
+```python
+# transferattack/main.py 의 eval()
+def eval(model, dataloader, is_targeted):
+    correct, total = 0, 0
+    for images, labels, _ in dataloader:
+        pred = model(images.cuda())
+        correct += (labels == pred.argmax(1)).sum()  # 공격 후에도 맞춘 수
+        total += labels.shape[0]
+    # untargeted(비표적) 공격:
+    asr = (1 - correct / total) * 100   # = (공격후 틀린 수) / 전체 × 100
+```
+
+→ **우리 구현(방식 A: 공격후 틀린 전체 / 전체)과 완전히 동일.** ✅
+
+**ASR의 일반 공식 (OECD 등):**
+```
+ASR = (성공한 공격 수 / 시도한 공격 전체 수) × 100%
+```
+이 분야에서는 "성공한 공격" = "모델이 오분류한 것"으로 해석하며, ASR은 사실상
+**misclassification rate(오분류율) = fooling rate(속임율)**과 동일하게 쓰인다.
+
+**세 가지 가능한 정의와 우리 선택:**
+| 방식 | 분자 | 분모 | 비고 |
+|------|------|------|------|
+| **A (채택)** | 공격 후 틀린 전체 | 전체 N | **TransferAttack 표준·우리 구현** |
+| B | 원래 맞던 것 중 틀려진 것 | 전체 N | clean accuracy 보정판 |
+| C | 원래 맞던 것 중 틀려진 것 | 원래 맞던 수 | 조건부 (초기 구현, 폐기) |
+
+**방식 A가 표준인 이유:**
+- 이 분야 데이터셋(NIPS 2017 ImageNet-Compatible 등)은 "거의 모든 모델이 올바르게 분류하는
+  이미지"로 선별되어 clean accuracy가 100%에 가까움 → A와 B의 차이(원래 틀린 소수 이미지)가 미미.
+- 그래서 대부분 논문/프레임워크가 `(1 - correct/total)` 형태의 간단한 A 방식을 사용.
+
+**결론:** 우리의 ASR 계산(방식 A, 전체 분모)은 **분야 최상위 논문·표준 프레임워크와 일치**한다.
+단, 화이트박스는 거의 포화(~100%)되므로 의미 있는 비교는 전이(블랙박스) 값으로 수행한다.
+
+(출처: TransferAttack 공식 코드 — 내용은 재현·요약. 라이선스 준수를 위해 핵심 로직만 발췌.)
