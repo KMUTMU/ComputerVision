@@ -1,0 +1,28 @@
+"# 전체 재실행 (논문식 ASR, 전체 분모)"
+# surrogate,resnet50,seed,0,eps,16/255,T,10
+
+run,target,total,clean_ok,adv_wrong,ASR_paper(%),whitebox
+ifgsm,resnet50,1000,903,1000,100.00,yes
+ifgsm,densenet121,1000,900,741,74.10,
+ifgsm,resnext50,1000,924,799,79.90,
+ifgsm,convnext_t,1000,961,344,34.40,
+ifgsm,swin_t,1000,942,299,29.90,
+ifgsm,vit_b_timm,1000,926,157,15.70,
+mifgsm,resnet50,1000,903,1000,100.00,yes
+mifgsm,densenet121,1000,900,907,90.70,
+mifgsm,resnext50,1000,924,932,93.20,
+mifgsm,convnext_t,1000,961,577,57.70,
+mifgsm,swin_t,1000,942,514,51.40,
+mifgsm,vit_b_timm,1000,926,311,31.10,
+lpaa_init_on,resnet50,1000,903,1000,100.00,yes
+lpaa_init_on,densenet121,1000,900,989,98.90,
+lpaa_init_on,resnext50,1000,924,988,98.80,
+lpaa_init_on,convnext_t,1000,961,895,89.50,
+lpaa_init_on,swin_t,1000,942,827,82.70,
+lpaa_init_on,vit_b_timm,1000,926,659,65.90,
+lpaa_init_off,resnet50,1000,903,999,99.90,yes
+lpaa_init_off,densenet121,1000,900,982,98.20,
+lpaa_init_off,resnext50,1000,924,985,98.50,
+lpaa_init_off,convnext_t,1000,961,898,89.80,
+lpaa_init_off,swin_t,1000,942,833,83.30,
+lpaa_init_off,vit_b_timm,1000,926,644,64.40,
