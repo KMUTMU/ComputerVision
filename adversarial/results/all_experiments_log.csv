@@ -16,3 +16,8 @@ exp9A,β스케줄 기준,resnet50,vit_b_timm,lpaa fixed-35 seed=0,ASR(%),63.61,�
 exp9B,β스케줄 감소,resnet50,vit_b_timm,lpaa decay50to20 seed=0,ASR(%),62.53,가설기각 (-1.08%p)
 paper,논문 Table1 참고,resnet50,vit_b,LPAA,ASR(%),58.30,논문 공식 수치 (RN-50 surrogate)
 paper,논문 Table1 참고,resnet50,vit_b,I-FGSM계열 baseline,ASR(%),49.70,참고 (MuMoDIG 등)
+exp10,β sweep fixed,resnet50,vit_b_timm,lpaa fixed-35 seed=0,ASR(%),63.71,최고 (논문값이 최적)
+exp10,β sweep rise,resnet50,vit_b_timm,lpaa rise20to50 seed=0,ASR(%),63.17,-0.54%p
+exp10,β sweep rise넓음,resnet50,vit_b_timm,lpaa rise10to60 seed=0,ASR(%),62.74,-0.97%p
+exp10,β sweep decay,resnet50,vit_b_timm,lpaa decay50to20 seed=0,ASR(%),62.53,-1.19%p
+exp10,β sweep decay넓음,resnet50,vit_b_timm,lpaa decay60to10 seed=0,ASR(%),61.77,-1.94%p (최저)
