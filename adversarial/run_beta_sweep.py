@@ -115,7 +115,7 @@ def main():
                               args.momentum, beta_start=b0, beta_end=b1)
         loader = get_loader(batch_size=args.batch_size)
 
-        cc = fo = 0
+        tot = cc = aw = 0  # 전체 / 공격전맞힘 / 공격후틀린전체(논문식 분자)
         t0 = time.time()
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
@@ -123,12 +123,12 @@ def main():
             clean_pred = predict(target, normalize, images)
             correct = clean_pred.eq(labels)
             adv_pred = predict(target, normalize, adv)
-            fooled = correct & adv_pred.ne(labels)
+            tot += labels.size(0)
             cc += correct.sum().item()
-            fo += fooled.sum().item()
-        asr = 100.0 * fo / max(cc, 1)
-        results.append((label, asr, cc, fo))
-        print(f"    ASR={asr:.2f}%  ({time.time()-t0:.0f}초)")
+            aw += adv_pred.ne(labels).sum().item()   # 공격 후 틀린 전체
+        asr = 100.0 * aw / max(tot, 1)               # 논문식 ASR (전체 분모)
+        results.append((label, asr, cc, aw))
+        print(f"    ASR(논문식)={asr:.2f}%  ({time.time()-t0:.0f}초)")
 
     # 결과 표 (ASR 높은 순)
     print("\n" + "=" * 66)
@@ -166,11 +166,12 @@ def save_results(args, results, base_asr):
         w.writerow(["# surrogate", args.surrogate, "target", args.target])
         w.writerow(["# seed", args.seed, "eps", f"{args.epsilon*255:.0f}/255",
                     "T", args.steps])
+        w.writerow(["# ASR = 논문식 (공격후 틀린 전체 / 전체)"])
         w.writerow([])
-        w.writerow(["beta_schedule", "ASR(%)", "clean_ok", "fooled",
-                    "vs_fixed35(%p)"])
-        for label, asr, cc, fo in results:
-            w.writerow([label, f"{asr:.2f}", cc, fo, f"{asr-base_asr:+.2f}"])
+        w.writerow(["beta_schedule", "ASR_paper(%)", "clean_ok",
+                    "adv_wrong", "vs_fixed35(%p)"])
+        for label, asr, cc, aw in results:
+            w.writerow([label, f"{asr:.2f}", cc, aw, f"{asr-base_asr:+.2f}"])
 
     print(f"\n📁 결과 저장됨: {path}")
     print("   (git add/commit/push 하면 다른 곳에서도 확인 가능)")

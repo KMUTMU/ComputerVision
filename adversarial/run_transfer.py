@@ -150,8 +150,13 @@ def main():
     print(f"[3/3] 공격 생성 및 전이 평가 중...\n")
     loader = get_loader(batch_size=args.batch_size)
 
-    # target 별 집계: (원래 맞힌 수, 공격 후 틀린 수)
-    stats = {name: {"clean_correct": 0, "fooled": 0} for name in args.targets}
+    # target 별 집계
+    #   total        : 전체 이미지 수
+    #   clean_correct: 공격 전 맞힌 수
+    #   fooled       : 원래 맞혔는데 공격 후 틀린 수 (조건부 ASR 분자)
+    #   adv_wrong    : 공격 후 틀린 전체 수 (논문식 ASR 분자)
+    stats = {name: {"total": 0, "clean_correct": 0, "fooled": 0, "adv_wrong": 0}
+             for name in args.targets}
     start = time.time()
 
     for images, labels in loader:
@@ -166,9 +171,12 @@ def main():
             clean_pred = predict(model, normalize, images)
             correct = clean_pred.eq(labels)  # 이 모델이 원래 맞힌 것
             adv_pred = predict(model, normalize, adv)
-            fooled = correct & adv_pred.ne(labels)
+            adv_wrong = adv_pred.ne(labels)         # 공격 후 틀린 전체
+            fooled = correct & adv_wrong            # 원래 맞혔는데 틀린 것
+            stats[name]["total"] += labels.size(0)
             stats[name]["clean_correct"] += correct.sum().item()
             stats[name]["fooled"] += fooled.sum().item()
+            stats[name]["adv_wrong"] += adv_wrong.sum().item()
 
     elapsed = time.time() - start
 
@@ -185,9 +193,12 @@ def main():
         return s + " " * gap if align == "left" else " " * gap + s
 
     # 컬럼 폭 정의 (표시 칸 기준)
-    cols = [("target 모델", 16, "left"), ("공격전 맞힘", 12, "right"),
-            ("공격후 맞힘", 12, "right"), ("공격후 틀림", 12, "right"),
-            ("ASR(전이성)", 13, "right"), ("비고", 16, "left")]
+    # ASR(논문식) = 공격후 틀린 전체 / 전체  ← 논문 Table 1 과 동일한 분모
+    # ASR(조건부) = 원래 맞힌 것 중 틀린 비율 (참고용)
+    cols = [("target 모델", 16, "left"), ("전체", 8, "right"),
+            ("공격전 맞힘", 12, "right"), ("공격후 틀림(전체)", 18, "right"),
+            ("ASR(논문식)", 13, "right"), ("ASR(조건부)", 13, "right"),
+            ("비고", 16, "left")]
     total_w = sum(w for _, w, _ in cols) + len(cols) - 1
 
     header = " ".join(pad(name, w, a) for name, w, a in cols)
@@ -195,26 +206,28 @@ def main():
     print(header)
     print("-" * total_w)
     for name in args.targets:
+        tot = stats[name]["total"]             # 전체
         cc = stats[name]["clean_correct"]      # 공격 전 맞힌 수
-        fo = stats[name]["fooled"]             # 공격으로 틀리게 된 수
-        still = cc - fo                        # 공격 후에도 맞힌 수
-        asr = 100.0 * fo / max(cc, 1)          # 공격 성공률 = 틀린 비율
+        fo = stats[name]["fooled"]             # 원래 맞혔는데 틀린 수
+        aw = stats[name]["adv_wrong"]          # 공격 후 틀린 전체 수
+        asr_paper = 100.0 * aw / max(tot, 1)   # 논문식: 전체 분모
+        asr_cond = 100.0 * fo / max(cc, 1)     # 조건부: 원래 맞힌 것 분모
         note = "<- 화이트박스" if name == args.surrogate else "전이(블랙박스)"
         row_vals = [
             (name, 16, "left"),
+            (f"{tot}", 8, "right"),
             (f"{cc}장", 12, "right"),
-            (f"{still}장", 12, "right"),
-            (f"{fo}장", 12, "right"),
-            (f"{asr:.2f}%", 13, "right"),
+            (f"{aw}장", 18, "right"),
+            (f"{asr_paper:.2f}%", 13, "right"),
+            (f"{asr_cond:.2f}%", 13, "right"),
             (note, 16, "left"),
         ]
         print(" ".join(pad(v, w, a) for v, w, a in row_vals))
     print("-" * total_w)
     print(f"소요 시간: {elapsed:.1f}초")
-    print("\n※ ASR(공격 성공률) = 공격후 틀린 장수 / 공격전 맞힌 장수")
-    print("  ASR이 높을수록 공격이 강함(= 더 많이 틀리게 만듦).")
-    print("  화이트박스(surrogate 자기자신)는 높고, 전이(다른 모델)는 낮게 나옵니다.")
-    print("  이 '떨어지는 폭'이 전이성 문제이며, LPAA가 줄이려는 대상입니다.")
+    print("\n※ ASR(논문식) = 공격후 틀린 전체 / 전체  ← 논문 Table 1 과 동일 분모 (이걸로 논문과 비교)")
+    print("  ASR(조건부) = 원래 맞힌 것 중 틀린 비율 (참고용, 화이트박스서 ~100% 나옴)")
+    print("  화이트박스는 논문처럼 ~94-98%, 전이(다른 모델)는 낮게 나옵니다.")
 
 
 if __name__ == "__main__":

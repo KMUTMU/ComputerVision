@@ -72,7 +72,8 @@ def main():
 
     total = 0            # 전체 이미지 수
     clean_correct = 0    # 공격 전 맞힌 수
-    fooled = 0           # 원래 맞혔는데 공격 후 틀린 수
+    fooled = 0           # 원래 맞혔는데 공격 후 틀린 수 (조건부 분자)
+    adv_wrong = 0        # 공격 후 틀린 전체 수 (논문식 분자)
     start = time.time()
 
     for images, labels in loader:
@@ -80,34 +81,33 @@ def main():
         labels = labels.to(device)
 
         clean_pred = predict(model, normalize, images)
-        correct_mask = clean_pred.eq(labels)  # 원래 맞힌 것만 공격 대상
+        correct_mask = clean_pred.eq(labels)  # 원래 맞힌 것
         clean_correct += correct_mask.sum().item()
         total += labels.size(0)
 
-        # 공격 생성 (원래 맞힌 이미지에 대해서만 성공률 계산)
         adv = attack(model, images, labels, normalize)
         adv_pred = predict(model, normalize, adv)
 
-        # 원래 맞혔는데( correct_mask ) 공격 후 틀린( != labels ) 경우
-        newly_fooled = correct_mask & adv_pred.ne(labels)
-        fooled += newly_fooled.sum().item()
+        adv_wrong += adv_pred.ne(labels).sum().item()               # 전체 중 틀린 수
+        fooled += (correct_mask & adv_pred.ne(labels)).sum().item() # 원래 맞혔는데 틀린 수
 
     elapsed = time.time() - start
     clean_acc = 100.0 * clean_correct / total
-    still_correct = clean_correct - fooled      # 공격 후에도 맞힌 수
-    asr = 100.0 * fooled / max(clean_correct, 1)
+    asr_paper = 100.0 * adv_wrong / max(total, 1)        # 논문식: 전체 분모
+    asr_cond = 100.0 * fooled / max(clean_correct, 1)    # 조건부: 원래 맞힌 것 분모
 
     print("-" * 64)
     print(f"전체 이미지         : {total}")
     print(f"공격 전 맞힌 장수   : {clean_correct}장  (정확도 {clean_acc:.2f}%)")
-    print(f"공격 후 맞힌 장수   : {still_correct}장")
-    print(f"공격 후 틀린 장수   : {fooled}장")
-    print(f"공격 성공률 (ASR)   : {asr:.2f}%  "
-          f"(= 틀린 {fooled} / 맞혔던 {clean_correct})")
+    print(f"공격 후 틀린 장수   : {adv_wrong}장 (전체 기준)")
+    print(f"ASR (논문식)        : {asr_paper:.2f}%  "
+          f"(= 공격후 틀린 {adv_wrong} / 전체 {total})")
+    print(f"ASR (조건부, 참고)  : {asr_cond:.2f}%  "
+          f"(= 원래 맞힌 것 중 틀린 비율)")
     print(f"소요 시간           : {elapsed:.1f}초")
     print("-" * 64)
-    print("※ 이것은 '화이트박스' 공격입니다 (공격 만든 모델 = 평가 모델).")
-    print("  레벨 2에서는 '다른 모델'에 통하는지(전이성)를 측정합니다.")
+    print("※ 논문식 ASR = 전체 분모 → 논문 Table 과 동일 기준 (화이트박스서 ~94-98%).")
+    print("  화이트박스 = 공격 만든 모델 = 평가 모델. 레벨 2에서 전이성 측정.")
 
 
 if __name__ == "__main__":

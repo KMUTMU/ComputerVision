@@ -118,8 +118,8 @@ def main():
     # 각 target 의 '공격 전 맞힌' 마스크를 미리 계산해 재사용
     loader = get_loader(batch_size=args.batch_size)
 
-    # 결과: results[method][target] = {clean_correct, fooled}
-    results = {m: {t: {"cc": 0, "fo": 0} for t in args.targets}
+    # 결과: results[method][target] = {total, cc(공격전맞힘), aw(공격후틀린전체)}
+    results = {m: {t: {"tot": 0, "cc": 0, "aw": 0} for t in args.targets}
                for m in args.methods}
 
     overall_start = time.time()
@@ -135,15 +135,14 @@ def main():
             # surrogate 에서 공격 생성 (한 번)
             adv = attack(surrogate, images, labels, normalize)
 
-            # 각 target 평가
+            # 각 target 평가 (논문식 ASR: 전체 분모)
             for t in args.targets:
                 model = loaded[t]
                 clean_pred = predict(model, normalize, images)
-                correct = clean_pred.eq(labels)
                 adv_pred = predict(model, normalize, adv)
-                fooled = correct & adv_pred.ne(labels)
-                results[method][t]["cc"] += correct.sum().item()
-                results[method][t]["fo"] += fooled.sum().item()
+                results[method][t]["tot"] += labels.size(0)
+                results[method][t]["cc"] += clean_pred.eq(labels).sum().item()
+                results[method][t]["aw"] += adv_pred.ne(labels).sum().item()
         print(f"    완료 ({time.time()-m_start:.0f}초)")
 
     # ---- 표 출력 (논문 Table 1 형식: 행=method, 열=target) ----
@@ -162,9 +161,9 @@ def main():
         line = pad(method, name_w, "left")
         asrs = []
         for t in args.targets:
-            cc = results[method][t]["cc"]
-            fo = results[method][t]["fo"]
-            asr = 100.0 * fo / max(cc, 1)
+            tot = results[method][t]["tot"]
+            aw = results[method][t]["aw"]
+            asr = 100.0 * aw / max(tot, 1)   # 논문식: 공격후 틀린 전체 / 전체
             # surrogate(화이트박스)는 * 표시 (논문 관례)
             star = "*" if t == args.surrogate else ""
             line += pad(f"{asr:.1f}{star}", col_w)
@@ -188,9 +187,9 @@ def main():
         for method, res, avg in csv_rows:
             row = [method]
             for t in args.targets:
-                cc = res[t]["cc"]
-                fo = res[t]["fo"]
-                row.append(f"{100.0*fo/max(cc,1):.1f}")
+                tot = res[t]["tot"]
+                aw = res[t]["aw"]
+                row.append(f"{100.0*aw/max(tot,1):.1f}")
             row.append(f"{avg:.1f}")
             w.writerow(row)
     print(f"결과 CSV 저장: {out}")
