@@ -111,23 +111,28 @@ def build_samples(args, filter_models, normalize, device):
 
     n = args.num_samples
     samples = [[] for _ in range(n)]
-    per_class = [{} for _ in range(n)]
-    filled = [False] * n
-    cur = 0  # 현재 채우는 샘플 인덱스 (A->B->C 순차적으로 채움, 겹침 없음)
+    # 클래스별로 "필터 통과한 이미지"를 모아뒀다가, 샘플 A/B/C 에 라운드로빈 분배.
+    # ImageNet val 은 클래스 정렬이므로, 각 클래스에서 (per_class * n)장을 모아
+    # 샘플마다 per_class 장씩 겹치지 않게 나눈다.
+    need_per_class = args.per_class * n   # 한 클래스에서 모을 총 장수
+    class_buffer = {}                     # label -> [img, img, ...]
 
     print(f"선별 중: 샘플 {n}개 x {args.per_sample}장 "
           f"(필터: {FILTER_MODELS} 모두 맞히는 것)")
+
+    def distribute(label, imgs):
+        """한 클래스에서 모은 imgs 를 샘플 A/B/C 에 per_class 장씩 분배."""
+        for i in range(n):
+            chunk = imgs[i * args.per_class:(i + 1) * args.per_class]
+            samples[i].extend((im, label) for im in chunk)
+
+    processed = 0
     for img, label in dataset:
-        if all(filled):
+        # 모든 샘플이 목표치를 채웠으면 종료
+        if all(len(s) >= args.per_sample for s in samples):
             break
-        # 현재 샘플이 다 찼으면 다음 샘플로
-        while cur < n and len(samples[cur]) >= args.per_sample:
-            filled[cur] = True
-            cur += 1
-        if cur >= n:
-            break
-        # 클래스당 제한
-        if per_class[cur].get(label, 0) >= args.per_class:
+        # 이 클래스가 이미 충분히 모였으면 skip
+        if len(class_buffer.get(label, [])) >= need_per_class:
             continue
         # 필터: 모든 필터 모델이 맞히는지
         x = img.unsqueeze(0).to(device)
@@ -140,11 +145,19 @@ def build_samples(args, filter_models, normalize, device):
                     break
         if not ok:
             continue
-        samples[cur].append((img, label))
-        per_class[cur][label] = per_class[cur].get(label, 0) + 1
-        done = sum(len(s) for s in samples)
-        if done % 300 == 0:
-            print(f"  누적 {done}장 선별 (현재 샘플 {cur+1}: {len(samples[cur])})")
+        class_buffer.setdefault(label, []).append(img)
+        processed += 1
+        # 이 클래스가 need_per_class 만큼 모이면 즉시 분배
+        if len(class_buffer[label]) == need_per_class:
+            distribute(label, class_buffer[label])
+        if processed % 300 == 0:
+            filled = sum(len(s) for s in samples)
+            print(f"  누적 통과 {processed}장, 분배됨 {filled}장")
+
+    # 끝까지 돌았는데 need_per_class 를 못 채운 클래스도 가능한 만큼 분배
+    for label, imgs in class_buffer.items():
+        if len(imgs) < need_per_class:
+            distribute(label, imgs)
 
     for i, s in enumerate(samples):
         print(f"  샘플 {chr(65+i)}: {len(s)}장")
