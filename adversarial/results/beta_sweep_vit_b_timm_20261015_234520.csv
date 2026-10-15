@@ -1,0 +1,10 @@
+# 실험: β 스케줄 비교
+# surrogate,resnet50,target,vit_b_timm
+# seed,0,eps,16/255,T,10
+
+beta_schedule,ASR(%),clean_ok,fooled,vs_fixed35(%p)
+fixed-35,63.71,926,590,+0.00
+decay 50to20,62.53,926,579,-1.19
+rise 20to50,63.17,926,585,-0.54
+decay 60to10,61.77,926,572,-1.94
+rise 10to60,62.74,926,581,-0.97
