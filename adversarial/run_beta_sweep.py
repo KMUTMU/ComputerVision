@@ -143,6 +143,36 @@ def main():
     print("-" * 66)
     print("* 기준 = fixed-35 (논문값). 모든 설정 β 평균=35, 동일 시드.")
 
+    # ---- 결과를 파일로 저장 (캡처 없이 git push로 공유 가능) ----
+    save_results(args, results, base_asr)
+
+
+def save_results(args, results, base_asr):
+    """실험 결과를 CSV로 저장 (results/ 폴더). git push 하면 공유 가능."""
+    import csv
+    import os
+    from datetime import datetime
+
+    out_dir = os.path.join("adversarial", "results")
+    os.makedirs(out_dir, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(out_dir, f"beta_sweep_{args.target}_{stamp}.csv")
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["# 실험: β 스케줄 비교"])
+        w.writerow(["# surrogate", args.surrogate, "target", args.target])
+        w.writerow(["# seed", args.seed, "eps", f"{args.epsilon*255:.0f}/255",
+                    "T", args.steps])
+        w.writerow([])
+        w.writerow(["beta_schedule", "ASR(%)", "clean_ok", "fooled",
+                    "vs_fixed35(%p)"])
+        for label, asr, cc, fo in results:
+            w.writerow([label, f"{asr:.2f}", cc, fo, f"{asr-base_asr:+.2f}"])
+
+    print(f"\n📁 결과 저장됨: {path}")
+    print("   (git add/commit/push 하면 다른 곳에서도 확인 가능)")
+
 
 if __name__ == "__main__":
     main()

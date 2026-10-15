@@ -1,0 +1,18 @@
+experiment,description,surrogate,target,setting,metric,value,notes
+exp3,화이트박스 공격 (I-FGSM),resnet50,resnet50,ifgsm eps=16/255 T=10,ASR(%),100.00,916/916 오분류 (화이트박스)
+exp4,전이성 I-FGSM,resnet50,resnet50,ifgsm,ASR(%),100.00,화이트박스
+exp4,전이성 I-FGSM,resnet50,resnext50,ifgsm,ASR(%),80.48,전이 (CNN 유사구조)
+exp4,전이성 I-FGSM,resnet50,densenet121,ifgsm,ASR(%),71.93,전이 (CNN)
+exp4,전이성 I-FGSM,resnet50,convnext_t,ifgsm,ASR(%),38.26,전이 (신식 CNN)
+exp4,전이성 I-FGSM,resnet50,swin_t,ifgsm,ASR(%),27.81,전이 (Transformer)
+exp4,전이성 I-FGSM,resnet50,vit_b,ifgsm,ASR(%),10.76,전이 (순수 Transformer, 최저)
+exp5,LPAA 재현,resnet50,resnet50,lpaa 자체데이터 torchvision,ASR(%),100.00,화이트박스
+exp5,LPAA 재현,resnet50,vit_b,lpaa 자체데이터 torchvision,ASR(%),65.34,I-FGSM 10.76% 대비 폭등
+exp6,ablation 선별기준,resnet50,vit_b,lpaa ResNet+ViT필터,ASR(%),64.97,선별기준 영향 미미(무죄)
+exp6,ablation 초기화끔,resnet50,vit_b,lpaa --no-init(근사GMI),ASR(%),66.22,초기화 꺼도 안떨어짐(무죄)
+exp7,정식GMI 초기화,resnet50,vit_b,lpaa 정식GMI,ASR(%),64.87,초기화 영향 없음 확정
+exp8,완전재현,resnet50,vit_b_timm,lpaa 표준데이터 timm,ASR(%),62.63,논문58.3%에 근접 (gap 7.0->4.3%p)
+exp9A,β스케줄 기준,resnet50,vit_b_timm,lpaa fixed-35 seed=0,ASR(%),63.61,기준
+exp9B,β스케줄 감소,resnet50,vit_b_timm,lpaa decay50to20 seed=0,ASR(%),62.53,가설기각 (-1.08%p)
+paper,논문 Table1 참고,resnet50,vit_b,LPAA,ASR(%),58.30,논문 공식 수치 (RN-50 surrogate)
+paper,논문 Table1 참고,resnet50,vit_b,I-FGSM계열 baseline,ASR(%),49.70,참고 (MuMoDIG 등)
